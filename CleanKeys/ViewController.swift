@@ -6,9 +6,12 @@
 //
 
 import Cocoa
+import IOKit.hid
 
 class ViewController: NSViewController {
-
+    @IBAction func disableInput(_ sender: NSButtonCell) {
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
