@@ -13,16 +13,17 @@ class ViewController: NSViewController {
     var manager: IOHIDManager?
     var keyboardDevices: Set<IOHIDDevice>?
     var disableTimer: Timer?
+    var countdownTimer: Timer?
+    var remainingTime: Int = 5
+    @IBOutlet weak var countdownLabel: NSTextField!
     
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        // Do any additional setup after loading the view.
+        // Initialize the countdown label
+        countdownLabel.isHidden = true
     }
     
-    
     @IBAction func disableInput(_ sender: NSButtonCell) {
-        
         let alert = NSAlert()
         alert.messageText = "Disable Input"
         alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
@@ -71,19 +72,35 @@ class ViewController: NSViewController {
             }
         }
         
-        // Use a shorter timer for initial testing
+        // Show the countdown label and start the countdown timer
+        remainingTime = 5
+        countdownLabel.stringValue = "Disabling keyboard for \(remainingTime) seconds"
+        countdownLabel.isHidden = false
+        countdownTimer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(updateCountdown), userInfo: nil, repeats: true)
+        
+        // Use a timer to re-enable the keyboard after 5 seconds
         disableTimer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(enableKeyboard), userInfo: nil, repeats: false)
     }
-
+    
+    @objc func updateCountdown() {
+        remainingTime -= 1
+        if remainingTime > 0 {
+            countdownLabel.stringValue = "Disabling keyboard for \(remainingTime) seconds"
+        } else {
+            countdownLabel.stringValue = "Re-enabling keyboard..."
+            countdownTimer?.invalidate()
+        }
+    }
     
     @objc func enableKeyboard() {
         keyboardDevices?.forEach { device in
             if IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone)) != kIOReturnSuccess {
                 showAlert("Failed to re-enable keyboard")
-            }}
+            }
+        }
         disableTimer?.invalidate()
+        countdownLabel.isHidden = true
     }
-    
     
     func showAlert(_ message: String) {
         let alert = NSAlert()
@@ -94,13 +111,9 @@ class ViewController: NSViewController {
         alert.runModal()
     }
     
-    
     override var representedObject: Any? {
         didSet {
         // Update the view, if already loaded.
         }
     }
-
-
 }
-
