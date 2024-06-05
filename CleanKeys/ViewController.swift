@@ -34,6 +34,7 @@ class ViewController: NSViewController {
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             if requestInputMonitoringPermission() {
+                print("Permission granted, proceeding to disable keyboard")
                 disableKeyboard()
             } else {
                 showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
@@ -44,7 +45,9 @@ class ViewController: NSViewController {
     func requestInputMonitoringPermission() -> Bool {
         // Request input monitoring permission if not already granted
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        return AXIsProcessTrustedWithOptions(options)
+        let permissionsGranted = AXIsProcessTrustedWithOptions(options)
+        print("Input monitoring permission granted: \(permissionsGranted)")
+        return permissionsGranted
     }
 
     func disableKeyboard() {
@@ -60,6 +63,7 @@ class ViewController: NSViewController {
                 showAlert("Failed to open HID Manager", "Error code: \(openStatus)")
                 return
             }
+            print("HID Manager opened successfully.")
         
         // Get the set of all HID devices
         guard let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else {
