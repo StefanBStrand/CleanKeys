@@ -55,10 +55,11 @@ class ViewController: NSViewController {
         IOHIDManagerSetDeviceMatching(manager, nil)
         
         // Open the HID Manager
-        if IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone)) != kIOReturnSuccess {
-            showAlert("Failed to open HID Manager")
-            return
-        }
+        let openStatus = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+            if openStatus != kIOReturnSuccess {
+                showAlert("Failed to open HID Manager", "Error code: \(openStatus)")
+                return
+            }
         
         // Get the set of all HID devices
         guard let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else {
