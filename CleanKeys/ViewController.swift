@@ -33,10 +33,20 @@ class ViewController: NSViewController {
         
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
-            disableKeyboard()
+            if requestInputMonitoringPermission() {
+                disableKeyboard()
+            } else {
+                showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
+            }
         }
     }
     
+    func requestInputMonitoringPermission() -> Bool {
+        // Request input monitoring permission if not already granted
+        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        return AXIsProcessTrustedWithOptions(options)
+    }
+
     func disableKeyboard() {
         // Create the HID Manager
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -110,6 +120,15 @@ class ViewController: NSViewController {
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
+
+    func showAlert(_ title: String, _ message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
     
     override var representedObject: Any? {
         didSet {
@@ -117,3 +136,4 @@ class ViewController: NSViewController {
         }
     }
 }
+
