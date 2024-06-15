@@ -54,8 +54,13 @@ class ViewController: NSViewController {
         // Create the HID Manager
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         
-        // Set device matching to nil to get all devices
-        IOHIDManagerSetDeviceMatching(manager, nil)
+        // Set the device matching to filter keyboards
+        let matchingDict: [String: Any] = [
+            kIOHIDDeviceUsagePageKey as String: kHIDPage_GenericDesktop,
+            kIOHIDDeviceUsageKey as String: kHIDUsage_GD_Keyboard
+        ]
+        IOHIDManagerSetDeviceMatching(manager, matchingDict as CFDictionary)
+
         
         // Open the HID Manager
         let openStatus = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -73,20 +78,29 @@ class ViewController: NSViewController {
         
         // Filter the devices to get only keyboards
         keyboardDevices = devices.filter { device in
-            guard let properties = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsagePageKey as CFString) else {
+            guard let usagePage = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsagePageKey as CFString) as? Int,
+                  let usage = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as? Int else {
                 return false
             }
-            let usagePage = properties as! Int
-            return usagePage == kHIDPage_GenericDesktop && (IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as! Int == kHIDUsage_GD_Keyboard)
+            return usagePage == kHIDPage_GenericDesktop && usage == kHIDUsage_GD_Keyboard
         }
         
+        if keyboardDevices?.isEmpty ?? true {
+            showAlert("No keyboard devices found")
+            return
+        }
+
+
         // Close (disable) each keyboard device
         keyboardDevices?.forEach { device in
-            if IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone)) != kIOReturnSuccess {
-                showAlert("Failed to disable keyboard")
+            let closeStatus = IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
+            if closeStatus != kIOReturnSuccess {
+                showAlert("Failed to disable keyboard", "Error code: \(closeStatus)")
+            } else {
+                print("Keyboard device disabled: \(device)")
             }
         }
-        
+
         // Show the countdown label and start the countdown timer
         remainingTime = 5
         countdownLabel.stringValue = "Disabling keyboard for \(remainingTime) seconds"
@@ -109,10 +123,14 @@ class ViewController: NSViewController {
     
     @objc func enableKeyboard() {
         keyboardDevices?.forEach { device in
-            if IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone)) != kIOReturnSuccess {
-                showAlert("Failed to re-enable keyboard")
+            let openStatus = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
+            if openStatus != kIOReturnSuccess {
+                showAlert("Failed to re-enable keyboard", "Error code: \(openStatus)")
+            } else {
+                print("Keyboard device re-enabled: \(device)")
             }
         }
+
         disableTimer?.invalidate()
         countdownLabel.isHidden = true
     }
@@ -141,3 +159,5 @@ class ViewController: NSViewController {
         }
     }
 }
+ 
+
