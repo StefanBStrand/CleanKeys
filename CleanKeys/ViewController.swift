@@ -10,11 +10,10 @@ import IOKit.hid
 
 class ViewController: NSViewController {
     
-    var manager: IOHIDManager?
-    var keyboardDevices: Set<IOHIDDevice>?
     var disableTimer: Timer?
     var countdownTimer: Timer?
     var remainingTime: Int = 5
+    var eventTap: CFMachPort?
     @IBOutlet weak var countdownLabel: NSTextField!
     
     override func viewDidLoad() {
@@ -51,50 +50,31 @@ class ViewController: NSViewController {
     }
 
     func disableKeyboard() {
-        // Create the HID Manager
-        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-
-        // Set the device matching to filter keyboards
-        let matchingDict: [String: Any] = [
-            kIOHIDDeviceUsagePageKey as String: kHIDPage_GenericDesktop,
-            kIOHIDDeviceUsageKey as String: kHIDUsage_GD_Keyboard
-        ]
-        IOHIDManagerSetDeviceMatching(manager, matchingDict as CFDictionary)
-
-        // Open the HID Manager
-        let openStatus = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        if openStatus != kIOReturnSuccess {
-            showAlert("Failed to open HID Manager", "Error code: \(openStatus)")
+        // Set up an event tap to intercept and ignore keyboard events
+        let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+        eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: { (proxy, eventType, event, refcon) -> Unmanaged<CGEvent>? in
+                if eventType == .keyDown || eventType == .keyUp {
+                    // Ignore the event
+                    return nil
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: nil
+        )
+        
+        guard let eventTap = eventTap else {
+            showAlert("Failed to create event tap")
             return
         }
-        print("HID Manager opened successfully.")
-
-        // Get the set of all HID devices
-        guard let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else {
-            showAlert("Failed to get HID devices")
-            return
-        }
-
-        // Filter the devices to get only keyboards
-        keyboardDevices = devices.filter { device in
-            guard let usagePage = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsagePageKey as CFString) as? Int,
-                  let usage = IOHIDDeviceGetProperty(device, kIOHIDPrimaryUsageKey as CFString) as? Int else {
-                return false
-            }
-            return usagePage == kHIDPage_GenericDesktop && usage == kHIDUsage_GD_Keyboard
-        }
-
-        if keyboardDevices?.isEmpty ?? true {
-            showAlert("No keyboard devices found")
-            return
-        }
-
-        // Register input value callback to ignore inputs
-        keyboardDevices?.forEach { device in
-            IOHIDDeviceRegisterInputValueCallback(device, { context, result, sender, value in
-                // Ignore all keyboard inputs
-            }, nil)
-        }
+        
+        let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: eventTap, enable: true)
         
         // Show the countdown label and start the countdown timer
         remainingTime = 5
@@ -117,9 +97,12 @@ class ViewController: NSViewController {
     }
     
     @objc func enableKeyboard() {
-        keyboardDevices?.forEach { device in
-            IOHIDDeviceRegisterInputValueCallback(device, nil, nil)
+        if let eventTap = eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0), .commonModes)
+            self.eventTap = nil
         }
+        
         disableTimer?.invalidate()
         countdownLabel.isHidden = true
     }
