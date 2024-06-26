@@ -157,4 +157,7 @@ class ViewController: NSViewController {
     }
 }
 
+// TODO: Add functionality to choose desired disable timer, no longer than 25 seeconds?
+// TODO: Cancel button/ or better, re-enable button in the app - change the disable button to re-enable once started. @
+
 
