@@ -7,6 +7,7 @@
 
 import Cocoa
 import IOKit.hid
+import Carbon
 
 class ViewController: NSViewController {
     
@@ -14,24 +15,29 @@ class ViewController: NSViewController {
     var countdownTimer: Timer?
     var remainingTime: Int = 5
     var eventTap: CFMachPort?
+    var globalMonitor: Any?
     @IBOutlet weak var countdownLabel: NSTextField!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Initialize the countdown label
         countdownLabel.isHidden = true
+        
+        registerGlobalHotkey()
     }
     
-    @IBAction func disableInput(_ sender: NSButtonCell) {
-        let alert = NSAlert()
-        alert.messageText = "Disable Input"
-        alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Disable")
-        alert.addButton(withTitle: "Cancel")
+    func registerGlobalHotkey() {
+            let keyCode = UInt16(kVK_ANSI_D) // Replace with the desired keycode
+            let modifierFlags: NSEvent.ModifierFlags = [.command, .shift] // Replace with desired modifiers
+
+            globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                if event.keyCode == keyCode && event.modifierFlags.contains(modifierFlags) {
+                    self?.handleGlobalHotkey()
+                }
+            }
+        }
         
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
+        func handleGlobalHotkey() {
             if requestInputMonitoringPermission() {
                 print("Permission granted, proceeding to disable keyboard")
                 disableKeyboard()
@@ -39,7 +45,20 @@ class ViewController: NSViewController {
                 showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
             }
         }
-    }
+    
+    @IBAction func disableInput(_ sender: NSButtonCell) {
+            let alert = NSAlert()
+            alert.messageText = "Disable Input"
+            alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Disable")
+            alert.addButton(withTitle: "Cancel")
+            
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                handleGlobalHotkey()
+            }
+        }
     
     func requestInputMonitoringPermission() -> Bool {
         // Request input monitoring permission if not already granted
@@ -128,6 +147,12 @@ class ViewController: NSViewController {
     override var representedObject: Any? {
         didSet {
         // Update the view, if already loaded.
+        }
+    }
+    
+    deinit {
+        if let globalMonitor = globalMonitor {
+            NSEvent.removeMonitor(globalMonitor)
         }
     }
 }
