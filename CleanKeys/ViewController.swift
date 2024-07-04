@@ -47,8 +47,11 @@ class ViewController: NSViewController {
             }
         }
         
-        func showAppWindow() {
+    func showAppWindow() {
             if let window = view.window {
+                if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
+                    window.setFrameOrigin(NSPoint(x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2))
+                }
                 window.makeKeyAndOrderFront(nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
             }
