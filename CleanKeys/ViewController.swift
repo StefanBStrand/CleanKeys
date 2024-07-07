@@ -17,13 +17,42 @@ class ViewController: NSViewController {
     var eventTap: CFMachPort?
     var globalMonitor: Any?
     var isKeyboardDisabled = false
+    
     @IBOutlet weak var countdownLabel: NSTextField!
     @IBOutlet weak var disableButton: NSButton!
+    
+    @IBAction func disableInput(_ sender: NSButton) {
+        DispatchQueue.main.async {
+            if self.isKeyboardDisabled {
+                self.enableKeyboard()
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "Disable Input"
+                alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Disable")
+                alert.addButton(withTitle: "Cancel")
+                
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    self.handleGlobalHotkey()
+                    sender.title = "Enable Keys"
+                }
+            }
+        }
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Initialize the countdown label
         countdownLabel.isHidden = true
+
+        // Check if the button outlet is properly set
+        if disableButton == nil {
+            print("disableButton outlet is nil in viewDidLoad")
+        } else {
+            print("disableButton outlet is properly connected in viewDidLoad")
+        }
         
         registerGlobalHotkey()
     }
@@ -40,40 +69,25 @@ class ViewController: NSViewController {
     }
     
     func handleGlobalHotkey() {
-        if requestInputMonitoringPermission() {
-            print("Permission granted, proceeding to disable keyboard")
-            showAppWindow() // Ensure the app window is visible
-            disableKeyboard()
-        } else {
-            showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
+        DispatchQueue.main.async {
+            if self.requestInputMonitoringPermission() {
+                print("Permission granted, proceeding to disable keyboard")
+                self.showAppWindow() // Ensure the app window is visible
+                self.disableKeyboard()
+            } else {
+                self.showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
+            }
         }
     }
     
     func showAppWindow() {
-        if let window = view.window {
-            if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
-                window.setFrameOrigin(NSPoint(x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2))
-            }
-            window.makeKeyAndOrderFront(nil)
-            NSApplication.shared.activate(ignoringOtherApps: true)
-        }
-    }
-    
-    @IBAction func disableInput(_ sender: NSButton) {
-        if isKeyboardDisabled {
-            enableKeyboard()
-        } else {
-            let alert = NSAlert()
-            alert.messageText = "Disable Input"
-            alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "Disable")
-            alert.addButton(withTitle: "Cancel")
-            
-            let response = alert.runModal()
-            if response == .alertFirstButtonReturn {
-                handleGlobalHotkey()
-                sender.title = "Enable Keys"
+        DispatchQueue.main.async {
+            if let window = self.view.window {
+                if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
+                    window.setFrameOrigin(NSPoint(x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2))
+                }
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
             }
         }
     }

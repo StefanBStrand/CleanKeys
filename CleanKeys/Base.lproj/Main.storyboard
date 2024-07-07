@@ -715,10 +715,10 @@
                                 <buttonCell key="cell" type="roundTextured" title="Disable Keys" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" state="on" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="6Kh-1Q-ZCG">
                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                     <font key="font" metaFont="system"/>
-                                    <connections>
-                                        <action selector="disableInput:" target="XfG-lQ-9wD" id="HiE-F6-nIW"/>
-                                    </connections>
                                 </buttonCell>
+                                <connections>
+                                    <action selector="disableInput:" target="XfG-lQ-9wD" id="zld-ul-poA"/>
+                                </connections>
                             </button>
                             <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="pa5-tJ-aVM">
                                 <rect key="frame" x="156" y="52" width="274" height="98"/>
@@ -733,6 +733,7 @@
                     </view>
                     <connections>
                         <outlet property="countdownLabel" destination="pa5-tJ-aVM" id="zCN-UO-qhJ"/>
+                        <outlet property="disableButton" destination="CYn-Mx-ff3" id="u3k-16-aqb"/>
                     </connections>
                 </viewController>
                 <customObject id="rPt-NT-nkU" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
