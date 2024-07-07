@@ -74,6 +74,9 @@ class ViewController: NSViewController {
                 print("Permission granted, proceeding to disable keyboard")
                 self.showAppWindow() // Ensure the app window is visible
                 self.disableKeyboard()
+                
+                // Update the button title
+                self.disableButton.title = "Enable Keys"
             } else {
                 self.showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
             }
