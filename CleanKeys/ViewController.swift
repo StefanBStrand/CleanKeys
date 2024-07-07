@@ -145,6 +145,7 @@ class ViewController: NSViewController {
         disableTimer?.invalidate()
         countdownLabel.isHidden = true
         
+        // Update the button title back to "Disable Keys"
         DispatchQueue.main.async {
             self.disableButton?.title = "Disable Keys"
         }
