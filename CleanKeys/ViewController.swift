@@ -213,3 +213,4 @@ class ViewController: NSViewController {
     }
 }
 
+// TODO: Add functionality to choose desired disable timer, no longer than 25 seconds? 
