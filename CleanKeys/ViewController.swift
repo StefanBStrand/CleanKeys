@@ -87,6 +87,8 @@ class ViewController: NSViewController {
     }
 
     func disableKeyboard() {
+        print("Disabling keyboard...")
+        
         // Set up an event tap to intercept and ignore keyboard events
         let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
         eventTap = CGEvent.tapCreate(
@@ -123,6 +125,7 @@ class ViewController: NSViewController {
         disableTimer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(enableKeyboard), userInfo: nil, repeats: false)
         
         isKeyboardDisabled = true
+        print("Keyboard disabled, button title should be 'Enable Keys'")
     }
     
     @objc func updateCountdown() {
@@ -136,6 +139,8 @@ class ViewController: NSViewController {
     }
     
     @objc func enableKeyboard() {
+        print("Enabling keyboard...")
+        
         if let eventTap = eventTap {
             CGEvent.tapEnable(tap: eventTap, enable: false)
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0), .commonModes)
@@ -145,12 +150,19 @@ class ViewController: NSViewController {
         disableTimer?.invalidate()
         countdownLabel.isHidden = true
         
-        // Update the button title back to "Disable Keys"
         DispatchQueue.main.async {
-            self.disableButton?.title = "Disable Keys"
+            print("Updating button title to 'Disable Keys'")
+            if let button = self.disableButton {
+                button.title = "Disable Keys"
+                self.view.layoutSubtreeIfNeeded()
+                print("Button title is now: \(button.title)")
+            } else {
+                print("disableButton is nil")
+            }
         }
         
         isKeyboardDisabled = false
+        print("Keyboard enabled, button title should be 'Disable Keys'")
     }
     
     func showAlert(_ message: String) {
@@ -183,3 +195,4 @@ class ViewController: NSViewController {
         }
     }
 }
+
