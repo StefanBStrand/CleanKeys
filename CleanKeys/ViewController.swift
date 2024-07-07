@@ -16,7 +16,9 @@ class ViewController: NSViewController {
     var remainingTime: Int = 5
     var eventTap: CFMachPort?
     var globalMonitor: Any?
+    var isKeyboardDisabled = false
     @IBOutlet weak var countdownLabel: NSTextField!
+    @IBOutlet weak var disableButton: NSButton!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -27,37 +29,40 @@ class ViewController: NSViewController {
     }
     
     func registerGlobalHotkey() {
-            let keyCode = UInt16(kVK_ANSI_D) // Replace with the desired keycode
-            let modifierFlags: NSEvent.ModifierFlags = [.command, .shift] // Replace with desired modifiers
+        let keyCode = UInt16(kVK_ANSI_D) // Replace with the desired keycode
+        let modifierFlags: NSEvent.ModifierFlags = [.command, .shift] // Replace with desired modifiers
 
-            globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                if event.keyCode == keyCode && event.modifierFlags.contains(modifierFlags) {
-                    self?.handleGlobalHotkey()
-                }
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == keyCode && event.modifierFlags.contains(modifierFlags) {
+                self?.handleGlobalHotkey()
             }
         }
-        
-    func handleGlobalHotkey() {
-            if requestInputMonitoringPermission() {
-                print("Permission granted, proceeding to disable keyboard")
-                showAppWindow() // Ensure the app window is visible
-                disableKeyboard()
-            } else {
-                showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
-            }
-        }
-        
-    func showAppWindow() {
-            if let window = view.window {
-                if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
-                    window.setFrameOrigin(NSPoint(x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2))
-                }
-                window.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate(ignoringOtherApps: true)
-            }
-        }
+    }
     
-    @IBAction func disableInput(_ sender: NSButtonCell) {
+    func handleGlobalHotkey() {
+        if requestInputMonitoringPermission() {
+            print("Permission granted, proceeding to disable keyboard")
+            showAppWindow() // Ensure the app window is visible
+            disableKeyboard()
+        } else {
+            showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
+        }
+    }
+    
+    func showAppWindow() {
+        if let window = view.window {
+            if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
+                window.setFrameOrigin(NSPoint(x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2))
+            }
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
+    }
+    
+    @IBAction func disableInput(_ sender: NSButton) {
+        if isKeyboardDisabled {
+            enableKeyboard()
+        } else {
             let alert = NSAlert()
             alert.messageText = "Disable Input"
             alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
@@ -68,8 +73,10 @@ class ViewController: NSViewController {
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
                 handleGlobalHotkey()
+                sender.title = "Enable Keys"
             }
         }
+    }
     
     func requestInputMonitoringPermission() -> Bool {
         // Request input monitoring permission if not already granted
@@ -114,6 +121,8 @@ class ViewController: NSViewController {
         
         // Use a timer to re-enable the keyboard after 5 seconds
         disableTimer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(enableKeyboard), userInfo: nil, repeats: false)
+        
+        isKeyboardDisabled = true
     }
     
     @objc func updateCountdown() {
@@ -135,6 +144,12 @@ class ViewController: NSViewController {
         
         disableTimer?.invalidate()
         countdownLabel.isHidden = true
+        
+        DispatchQueue.main.async {
+            self.disableButton?.title = "Disable Keys"
+        }
+        
+        isKeyboardDisabled = false
     }
     
     func showAlert(_ message: String) {
@@ -167,8 +182,3 @@ class ViewController: NSViewController {
         }
     }
 }
-
-// TODO: Add functionality to choose desired disable timer, no longer than 25 seeconds?
-// TODO: Cancel button/ or better, re-enable button in the app - change the disable button to re-enable once started. @
-
-
