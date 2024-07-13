@@ -65,9 +65,10 @@ class ViewController: NSViewController {
             if self.isKeyboardDisabled {
                 self.enableKeyboard()
             } else {
+                let selectedDuration = Int(self.durationSlider.doubleValue)
                 let alert = NSAlert()
                 alert.messageText = "Disable Input"
-                alert.informativeText = "This will disable your keyboard for 5 seconds. Do you want to proceed?"
+                alert.informativeText = "This will disable your keyboard for \(selectedDuration) seconds. Do you want to proceed?"
                 alert.alertStyle = .warning
                 alert.addButton(withTitle: "Disable")
                 alert.addButton(withTitle: "Cancel")
@@ -239,4 +240,3 @@ class ViewController: NSViewController {
     }
 }
 
-// TODO: Add functionality to choose desired disable timer, no longer than 25 seconds?
