@@ -20,6 +20,45 @@ class ViewController: NSViewController {
     
     @IBOutlet weak var countdownLabel: NSTextField!
     @IBOutlet weak var disableButton: NSButton!
+    @IBOutlet weak var durationSlider: NSSlider!
+    @IBOutlet weak var durationLabel: NSTextField!
+    
+    let defaultDisableDurationKey = "defaultDisableDuration"
+    let initialDefaultDuration = 10 // Default value for the first time the app starts
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        // Initialize the countdown label
+        countdownLabel.isHidden = true
+        
+        // Set default value if it's the first launch
+        let savedDuration = UserDefaults.standard.integer(forKey: defaultDisableDurationKey)
+        let initialDuration = savedDuration != 0 ? savedDuration : initialDefaultDuration
+        durationSlider.minValue = 5
+        durationSlider.maxValue = 25
+        durationSlider.doubleValue = Double(initialDuration)
+        durationLabel.stringValue = "Disable for \(initialDuration) seconds"
+
+        // Check if the button outlet is properly set
+        if disableButton == nil {
+            print("disableButton outlet is nil in viewDidLoad")
+        } else {
+            print("disableButton outlet is properly connected in viewDidLoad")
+        }
+        
+        registerGlobalHotkey()
+    }
+    
+    
+    @IBAction func durationSliderChanged(_ sender: NSSlider) {
+        let selectedDuration = Int(sender.doubleValue)
+        durationLabel.stringValue = "Disable for \(selectedDuration) seconds"
+        
+        // Save the selected duration
+        UserDefaults.standard.set(selectedDuration, forKey: defaultDisableDurationKey)
+        }
+    
     
     @IBAction func disableInput(_ sender: NSButton) {
         DispatchQueue.main.async {
@@ -42,20 +81,7 @@ class ViewController: NSViewController {
         }
     }
     
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        // Initialize the countdown label
-        countdownLabel.isHidden = true
-
-        // Check if the button outlet is properly set
-        if disableButton == nil {
-            print("disableButton outlet is nil in viewDidLoad")
-        } else {
-            print("disableButton outlet is properly connected in viewDidLoad")
-        }
-        
-        registerGlobalHotkey()
-    }
+    
     
     func registerGlobalHotkey() {
         let keyCode = UInt16(kVK_ANSI_D) // Replace with the desired keycode
@@ -133,13 +159,13 @@ class ViewController: NSViewController {
         CGEvent.tapEnable(tap: eventTap, enable: true)
         
         // Show the countdown label and start the countdown timer
-        remainingTime = 5
+        remainingTime = Int(durationSlider.doubleValue) // Use the selected duration from the slider
         countdownLabel.stringValue = "Disabling keyboard for \(remainingTime) seconds"
         countdownLabel.isHidden = false
         countdownTimer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(updateCountdown), userInfo: nil, repeats: true)
         
-        // Use a timer to re-enable the keyboard after 5 seconds
-        disableTimer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(enableKeyboard), userInfo: nil, repeats: false)
+        // Use a timer to re-enable the keyboard after the selected duration
+        disableTimer = Timer.scheduledTimer(timeInterval: TimeInterval(remainingTime), target: self, selector: #selector(enableKeyboard), userInfo: nil, repeats: false)
         
         isKeyboardDisabled = true
         print("Keyboard disabled, button title should be 'Enable Keys'")
@@ -213,4 +239,4 @@ class ViewController: NSViewController {
     }
 }
 
-// TODO: Add functionality to choose desired disable timer, no longer than 25 seconds? 
+// TODO: Add functionality to choose desired disable timer, no longer than 25 seconds?

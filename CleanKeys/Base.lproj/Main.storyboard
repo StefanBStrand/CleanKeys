@@ -729,11 +729,32 @@
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
+                            <slider verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="pd0-ax-NNl">
+                                <rect key="frame" x="95" y="224" width="96" height="28"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <sliderCell key="cell" state="on" alignment="left" minValue="5" maxValue="25" doubleValue="5" tickMarkPosition="above" numberOfTickMarks="5" allowsTickMarkValuesOnly="YES" sliderType="linear" id="blL-tS-qp5">
+                                    <font key="font" size="12" name="Helvetica"/>
+                                </sliderCell>
+                                <connections>
+                                    <action selector="durationSliderChanged:" target="XfG-lQ-9wD" id="Rhi-av-pzZ"/>
+                                </connections>
+                            </slider>
+                            <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="MEi-gD-R6u">
+                                <rect key="frame" x="291" y="197" width="161" height="53"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" lineBreakMode="clipping" title="Label" id="B6P-Ev-htz">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
                         </subviews>
                     </view>
                     <connections>
                         <outlet property="countdownLabel" destination="pa5-tJ-aVM" id="zCN-UO-qhJ"/>
                         <outlet property="disableButton" destination="CYn-Mx-ff3" id="u3k-16-aqb"/>
+                        <outlet property="durationLabel" destination="MEi-gD-R6u" id="zii-vR-WoH"/>
+                        <outlet property="durationSlider" destination="pd0-ax-NNl" id="J2M-36-RDi"/>
                     </connections>
                 </viewController>
                 <customObject id="rPt-NT-nkU" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
