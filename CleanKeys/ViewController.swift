@@ -5,8 +5,8 @@
 //  Created by Stefan Boytchev on 21/05/2024.
 //
 
-import Cocoa
 import IOKit.hid
+import Cocoa
 import Carbon
 
 class ViewController: NSViewController {
