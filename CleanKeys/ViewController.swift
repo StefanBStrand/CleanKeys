@@ -2,223 +2,274 @@
 //  ViewController.swift
 //  CleanKeys
 //
-//  Created by Stefan Boytchev on 21/05/2024.
-//
 
-import IOKit.hid
 import Cocoa
-import Carbon
+import ApplicationServices
+import IOKit.hidsystem
 
 class ViewController: NSViewController {
-    
-    var disableTimer: Timer?
-    var countdownTimer: Timer?
-    var remainingTime: Int = 5
-    var eventTap: CFMachPort?
-    var globalMonitor: Any?
-    var isKeyboardDisabled = false
-    
+    private var disableTimer: Timer?
+    private var countdownTimer: Timer?
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var unlockDeadline: ContinuousClock.Instant?
+    private var isKeyboardDisabled = false
+    private var isConfirmingLock = false
+    // Temporary diagnostics: at most one callback message per event type per session.
+    private var diagnosticEventTypes = Set<UInt32>()
+    private var diagnosticSeconds: Int64?
+    private var diagnosticSystemCategories = Set<String>()
+
+    private func diagnostic(_ message: String) {
+        #if DEBUG
+        print("[CleanKeys tap] \(message)")
+        #endif
+    }
+
     @IBOutlet weak var countdownLabel: NSTextField!
     @IBOutlet weak var disableButton: NSButton!
     @IBOutlet weak var durationSlider: NSSlider!
     @IBOutlet weak var durationLabel: NSTextField!
-    
-    let defaultDisableDurationKey = "defaultDisableDuration"
-    let initialDefaultDuration = 10 // Default value for the first time the app starts
-    
+
+    private let defaultDisableDurationKey = "defaultDisableDuration"
+    private let initialDefaultDuration = 10
+    private let maximumLockDuration = 25
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        // Initialize the countdown label
         countdownLabel.isHidden = true
-        
-        // Set default value if it's the first launch
         let savedDuration = UserDefaults.standard.integer(forKey: defaultDisableDurationKey)
-        let initialDuration = savedDuration != 0 ? savedDuration : initialDefaultDuration
+        let initialDuration = min(max(savedDuration == 0 ? initialDefaultDuration : savedDuration, 5), maximumLockDuration)
         durationSlider.minValue = 5
-        durationSlider.maxValue = 25
-        durationSlider.doubleValue = Double(initialDuration)
+        durationSlider.maxValue = Double(maximumLockDuration)
+        durationSlider.integerValue = initialDuration
         durationLabel.stringValue = "Disable for \(initialDuration) seconds"
 
-        // Check if the button outlet is properly set
-        if disableButton == nil {
-            print("disableButton outlet is nil in viewDidLoad")
-        } else {
-            print("disableButton outlet is properly connected in viewDidLoad")
-        }
-        
-        registerGlobalHotkey()
+        NotificationCenter.default.addObserver(self, selector: #selector(unlockForNotification(_:)),
+                                               name: NSApplication.willTerminateNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(unlockForNotification(_:)),
+                                                          name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(unlockForNotification(_:)),
+                                                          name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
     }
-    
-    
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: nil)
+        if let window = view.window {
+            NotificationCenter.default.addObserver(self, selector: #selector(unlockForNotification(_:)),
+                                                   name: NSWindow.willCloseNotification, object: window)
+        }
+    }
+
     @IBAction func durationSliderChanged(_ sender: NSSlider) {
-        let selectedDuration = Int(sender.doubleValue)
-        durationLabel.stringValue = "Disable for \(selectedDuration) seconds"
-        
-        // Save the selected duration
-        UserDefaults.standard.set(selectedDuration, forKey: defaultDisableDurationKey)
-        }
-    
-    
+        let duration = selectedDuration
+        durationLabel.stringValue = "Disable for \(duration) seconds"
+        UserDefaults.standard.set(duration, forKey: defaultDisableDurationKey)
+    }
+
+    private var selectedDuration: Int {
+        min(max(durationSlider.integerValue, 5), maximumLockDuration)
+    }
+
     @IBAction func disableInput(_ sender: NSButton) {
-        DispatchQueue.main.async {
-            if self.isKeyboardDisabled {
-                self.enableKeyboard()
-            } else {
-                let selectedDuration = Int(self.durationSlider.doubleValue)
-                let alert = NSAlert()
-                alert.messageText = "Disable Input"
-                alert.informativeText = "This will disable your keyboard for \(selectedDuration) seconds. Do you want to proceed?"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Disable")
-                alert.addButton(withTitle: "Cancel")
-                
-                let response = alert.runModal()
-                if response == .alertFirstButtonReturn {
-                    self.handleGlobalHotkey()
-                    sender.title = "Enable Keys"
-                }
-            }
+        if isKeyboardDisabled {
+            enableKeyboard(reason: "mouse button")
+            return
         }
-    }
-    
-    
-    
-    func registerGlobalHotkey() {
-        let keyCode = UInt16(kVK_ANSI_D) // Replace with the desired keycode
-        let modifierFlags: NSEvent.ModifierFlags = [.command, .shift] // Replace with desired modifiers
+        guard !isConfirmingLock else { return }
+        isConfirmingLock = true
+        defer { isConfirmingLock = false }
 
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == keyCode && event.modifierFlags.contains(modifierFlags) {
-                self?.handleGlobalHotkey()
-            }
-        }
-    }
-    
-    func handleGlobalHotkey() {
-        DispatchQueue.main.async {
-            if self.requestInputMonitoringPermission() {
-                print("Permission granted, proceeding to disable keyboard")
-                self.showAppWindow() // Ensure the app window is visible
-                self.disableKeyboard()
-                
-                // Update the button title
-                self.disableButton.title = "Enable Keys"
-            } else {
-                self.showAlert("Permission required", "This app requires permission to monitor keyboard input. Please grant the necessary permissions in System Preferences.")
-            }
-        }
-    }
-    
-    func showAppWindow() {
-        DispatchQueue.main.async {
-            if let window = self.view.window {
-                if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
-                    window.setFrameOrigin(NSPoint(x: screen.frame.midX - window.frame.width / 2, y: screen.frame.midY - window.frame.height / 2))
-                }
-                window.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate(ignoringOtherApps: true)
-            }
-        }
-    }
-    
-    func requestInputMonitoringPermission() -> Bool {
-        // Request input monitoring permission if not already granted
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        let permissionsGranted = AXIsProcessTrustedWithOptions(options)
-        print("Input monitoring permission granted: \(permissionsGranted)")
-        return permissionsGranted
+        let alert = NSAlert()
+        alert.messageText = "Disable Input"
+        alert.informativeText = "This will disable your keyboard for \(selectedDuration) seconds. Do you want to proceed?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Disable")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        disableKeyboard()
     }
 
-    func disableKeyboard() {
-        print("Disabling keyboard...")
-        
-        // Set up an event tap to intercept and ignore keyboard events
-        let eventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
-        eventTap = CGEvent.tapCreate(
+    private func disableKeyboard() {
+        guard !isKeyboardDisabled, eventTap == nil else { return }
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let accessibilityTrusted = AXIsProcessTrustedWithOptions(options)
+        diagnostic("permissions: accessibility=\(accessibilityTrusted), listenAccess=\(CGPreflightListenEventAccess()); mainThread=\(Thread.isMainThread)")
+        diagnostic("executable=\(Bundle.main.executableURL?.path ?? "unknown")")
+        guard accessibilityTrusted else {
+            showAlert("Accessibility permission required",
+                      "Allow CleanKeys in System Settings > Privacy & Security > Accessibility, then try again. If access is still unavailable, quit and reopen CleanKeys. The keyboard has not been disabled.")
+            return
+        }
+
+        // Core Graphics has no named systemDefined case; AppKit/NX_SYSDEFINED is type 14.
+        let systemDefinedMask = CGEventMask(1) << NSEvent.EventType.systemDefined.rawValue
+        let eventMask = [CGEventType.keyDown, .keyUp, .flagsChanged].reduce(systemDefinedMask) {
+            $0 | (CGEventMask(1) << $1.rawValue)
+        }
+        diagnosticEventTypes.removeAll()
+        diagnosticSystemCategories.removeAll()
+        diagnosticSeconds = nil
+        diagnostic("creating session/headInsert/defaultTap; mask=\(eventMask) (keyDown/keyUp/flagsChanged/systemDefined)")
+        guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(eventMask),
-            callback: { (proxy, eventType, event, refcon) -> Unmanaged<CGEvent>? in
-                if eventType == .keyDown || eventType == .keyUp {
-                    // Ignore the event
+            eventsOfInterest: eventMask,
+            callback: { _, type, event, context in
+                guard let context = context else {
+                    #if DEBUG
+                    print("[CleanKeys tap] callback missing context; passing event")
+                    #endif
+                    return Unmanaged.passUnretained(event)
+                }
+                let controller = Unmanaged<ViewController>.fromOpaque(context).takeUnretainedValue()
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    // Fail open: never silently resume blocking after macOS disables the tap.
+                    controller.diagnostic("callback: \(type == .tapDisabledByTimeout ? "tapDisabledByTimeout" : "tapDisabledByUserInput"); enabled=\(controller.eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false)")
+                    controller.enableKeyboard(reason: "tap disable notification")
+                    return Unmanaged.passUnretained(event)
+                }
+                guard controller.isKeyboardDisabled,
+                      let deadline = controller.unlockDeadline,
+                      ContinuousClock.now < deadline else {
+                    controller.diagnostic("callback passing event: locked=\(controller.isKeyboardDisabled), deadlinePresent=\(controller.unlockDeadline != nil)")
+                    controller.enableKeyboard(reason: "callback inactive or deadline expired")
+                    return Unmanaged.passUnretained(event)
+                }
+                if type.rawValue == UInt32(NSEvent.EventType.systemDefined.rawValue) {
+                    let category = controller.auxiliaryControlCategory(event)
+                    let label = category ?? "unrelated/unsupported"
+                    if controller.diagnosticSystemCategories.insert(label).inserted {
+                        controller.diagnostic("systemDefined: \(label); \(category == nil ? "pass" : "drop")")
+                    }
+                    // Preserve other subtypes (including auxiliary mouse buttons) and unknown controls.
+                    return category == nil ? Unmanaged.passUnretained(event) : nil
+                }
+                if type == .keyDown || type == .keyUp || type == .flagsChanged {
+                    if controller.diagnosticEventTypes.insert(type.rawValue).inserted {
+                        let name = type == .keyDown ? "keyDown" : (type == .keyUp ? "keyUp" : "flagsChanged")
+                        controller.diagnostic("callback: \(name); returning nil (drop); mainThread=\(Thread.isMainThread), enabled=\(controller.eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false)")
+                    }
                     return nil
                 }
                 return Unmanaged.passUnretained(event)
             },
-            userInfo: nil
-        )
-        
-        guard let eventTap = eventTap else {
-            showAlert("Failed to create event tap")
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            diagnostic("tapCreate returned nil")
+            showAlert("Could not disable keyboard",
+                      "macOS could not create the keyboard event tap. Check CleanKeys in System Settings > Privacy & Security > Accessibility and reopen the app if needed. The keyboard has not been disabled.")
             return
         }
-        
-        let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: eventTap, enable: true)
-        
-        // Show the countdown label and start the countdown timer
-        remainingTime = Int(durationSlider.doubleValue) // Use the selected duration from the slider
-        countdownLabel.stringValue = "Disabling keyboard for \(remainingTime) seconds"
-        countdownLabel.isHidden = false
-        countdownTimer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(updateCountdown), userInfo: nil, repeats: true)
-        
-        // Use a timer to re-enable the keyboard after the selected duration
-        disableTimer = Timer.scheduledTimer(timeInterval: TimeInterval(remainingTime), target: self, selector: #selector(enableKeyboard), userInfo: nil, repeats: false)
-        
+        eventTap = tap
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            enableKeyboard(reason: "setup failure")
+            showAlert("Could not disable keyboard", "The keyboard event source could not be created. The keyboard has not been disabled.")
+            return
+        }
+        runLoopSource = source
+        let duration = selectedDuration
+        unlockDeadline = ContinuousClock.now.advanced(by: .seconds(duration))
         isKeyboardDisabled = true
-        print("Keyboard disabled, button title should be 'Enable Keys'")
-    }
-    
-    @objc func updateCountdown() {
-        remainingTime -= 1
-        if remainingTime > 0 {
-            countdownLabel.stringValue = "Disabling keyboard for \(remainingTime) seconds"
-        } else {
-            countdownLabel.stringValue = "Re-enabling keyboard..."
-            countdownTimer?.invalidate()
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        diagnostic("installed source: valid=\(CFRunLoopSourceIsValid(source)), inMainCommonModes=\(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes)); tapIsEnabled=\(CGEvent.tapIsEnabled(tap: tap)); duration=\(duration)s")
+        guard CGEvent.tapIsEnabled(tap: tap) else {
+            enableKeyboard(reason: "setup failure")
+            showAlert("Could not disable keyboard", "macOS did not enable the keyboard event tap. Check Accessibility permission and try again.")
+            return
         }
-    }
-    
-    @objc func enableKeyboard() {
-        print("Enabling keyboard...")
-        
-        if let eventTap = eventTap {
-            CGEvent.tapEnable(tap: eventTap, enable: false)
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0), .commonModes)
-            self.eventTap = nil
+
+        disableButton.title = "Enable Keys"
+        updateCountdown()
+        let countdown = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.updateCountdown()
         }
-        
-        disableTimer?.invalidate()
-        countdownLabel.isHidden = true
-        
-        DispatchQueue.main.async {
-            print("Updating button title to 'Disable Keys'")
-            if let button = self.disableButton {
-                button.title = "Disable Keys"
-                self.view.layoutSubtreeIfNeeded()
-                print("Button title is now: \(button.title)")
-            } else {
-                print("disableButton is nil")
-            }
+        countdownTimer = countdown
+        RunLoop.main.add(countdown, forMode: .common)
+        let unlock = Timer(timeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
+            self?.enableKeyboard(reason: "automatic unlock timer")
         }
-        
-        isKeyboardDisabled = false
-        print("Keyboard enabled, button title should be 'Disable Keys'")
-    }
-    
-    func showAlert(_ message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Error"
-        alert.informativeText = message
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        disableTimer = unlock
+        RunLoop.main.add(unlock, forMode: .common)
     }
 
-    func showAlert(_ title: String, _ message: String) {
+    private func auxiliaryControlCategory(_ event: CGEvent) -> String? {
+        guard let auxiliary = NSEvent(cgEvent: event), auxiliary.type == .systemDefined,
+              auxiliary.subtype.rawValue == NX_SUBTYPE_AUX_CONTROL_BUTTONS else { return nil }
+        // NX auxiliary data1: high 16 bits are control type; bits 8–15 are down/up.
+        // Match both transitions (and repeats), without logging or retaining the payload.
+        let keyType = Int32((auxiliary.data1 >> 16) & 0xffff)
+        let state = (auxiliary.data1 >> 8) & 0xff
+        guard state == NX_KEYDOWN || state == NX_KEYUP else { return nil }
+        switch keyType {
+        case NX_KEYTYPE_PLAY, NX_KEYTYPE_NEXT, NX_KEYTYPE_PREVIOUS,
+             NX_KEYTYPE_FAST, NX_KEYTYPE_REWIND:
+            return "media playback"
+        case NX_KEYTYPE_SOUND_UP, NX_KEYTYPE_SOUND_DOWN, NX_KEYTYPE_MUTE:
+            return "volume"
+        case NX_KEYTYPE_BRIGHTNESS_UP, NX_KEYTYPE_BRIGHTNESS_DOWN:
+            return "display brightness"
+        case NX_KEYTYPE_ILLUMINATION_UP, NX_KEYTYPE_ILLUMINATION_DOWN, NX_KEYTYPE_ILLUMINATION_TOGGLE:
+            return "keyboard backlight"
+        default:
+            return nil
+        }
+    }
+
+    private func updateCountdown() {
+        guard isKeyboardDisabled, let deadline = unlockDeadline else { return }
+        let now = ContinuousClock.now
+        guard now < deadline else {
+            enableKeyboard(reason: "countdown deadline reached")
+            return
+        }
+        let remaining = now.duration(to: deadline).components
+        let seconds = remaining.seconds + (remaining.attoseconds > 0 ? 1 : 0)
+        if diagnosticSeconds != seconds {
+            diagnosticSeconds = seconds
+            diagnostic("countdown: \(seconds)s; locked=\(isKeyboardDisabled), tapIsEnabled=\(eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false), callbackTypesSeen=\(diagnosticEventTypes.count)")
+        }
+        countdownLabel.stringValue = "Disabling keyboard for \(seconds) seconds"
+        countdownLabel.isHidden = false
+    }
+
+    @objc private func unlockForNotification(_ notification: Notification) {
+        enableKeyboard(reason: "notification: \(notification.name.rawValue)")
+    }
+
+    private func enableKeyboard(reason: String) {
+        diagnostic("unlock: \(reason); locked=\(isKeyboardDisabled), tapPresent=\(eventTap != nil)")
+        cleanupLock()
+        countdownLabel?.isHidden = true
+        disableButton?.title = "Disable Keys"
+    }
+
+    private func cleanupLock() {
+        if eventTap != nil {
+            diagnostic("cleanup: disabling/invalidation of tap and stored source; invalidating timers")
+        }
+        isKeyboardDisabled = false
+        unlockDeadline = nil
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+        }
+        if let source = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            CFRunLoopSourceInvalidate(source)
+        }
+        runLoopSource = nil
+        eventTap = nil
+        disableTimer?.invalidate()
+        disableTimer = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+    }
+
+    private func showAlert(_ title: String, _ message: String) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
@@ -226,17 +277,10 @@ class ViewController: NSViewController {
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
-    
-    override var representedObject: Any? {
-        didSet {
-        // Update the view, if already loaded.
-        }
-    }
-    
+
     deinit {
-        if let globalMonitor = globalMonitor {
-            NSEvent.removeMonitor(globalMonitor)
-        }
+        cleanupLock()
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 }
-
