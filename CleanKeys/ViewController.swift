@@ -30,6 +30,9 @@ class ViewController: NSViewController {
     @IBOutlet weak var disableButton: NSButton!
     @IBOutlet weak var durationSlider: NSSlider!
     @IBOutlet weak var durationLabel: NSTextField!
+    @IBOutlet private weak var headingLabel: NSTextField!
+    @IBOutlet private weak var supportingLabel: NSTextField!
+    @IBOutlet private weak var keyboardIcon: NSImageView!
 
     private let defaultDisableDurationKey = "defaultDisableDuration"
     private let initialDefaultDuration = 10
@@ -37,13 +40,22 @@ class ViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        countdownLabel.isHidden = true
         let savedDuration = UserDefaults.standard.integer(forKey: defaultDisableDurationKey)
         let initialDuration = min(max(savedDuration == 0 ? initialDefaultDuration : savedDuration, 5), maximumLockDuration)
         durationSlider.minValue = 5
         durationSlider.maxValue = Double(maximumLockDuration)
         durationSlider.integerValue = initialDuration
-        durationLabel.stringValue = "Disable for \(initialDuration) seconds"
+        countdownLabel.font = .monospacedDigitSystemFont(ofSize: 28, weight: .semibold)
+        countdownLabel.setAccessibilityLabel("Time remaining")
+        durationSlider.setAccessibilityLabel("Lock duration in seconds")
+        keyboardIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 44, weight: .regular)
+        keyboardIcon.contentTintColor = .secondaryLabelColor
+        keyboardIcon.setAccessibilityElement(false)
+        disableButton.controlSize = .large
+        disableButton.bezelStyle = .rounded
+        disableButton.bezelColor = .controlAccentColor
+        disableButton.font = .systemFont(ofSize: 15, weight: .semibold)
+        updatePresentation()
 
         NotificationCenter.default.addObserver(self, selector: #selector(unlockForNotification(_:)),
                                                name: NSApplication.willTerminateNotification, object: nil)
@@ -64,7 +76,7 @@ class ViewController: NSViewController {
 
     @IBAction func durationSliderChanged(_ sender: NSSlider) {
         let duration = selectedDuration
-        durationLabel.stringValue = "Disable for \(duration) seconds"
+        updatePresentation()
         UserDefaults.standard.set(duration, forKey: defaultDisableDurationKey)
     }
 
@@ -182,7 +194,7 @@ class ViewController: NSViewController {
             return
         }
 
-        disableButton.title = "Enable Keys"
+        updatePresentation()
         updateCountdown()
         let countdown = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
             self?.updateCountdown()
@@ -232,7 +244,8 @@ class ViewController: NSViewController {
             diagnosticSeconds = seconds
             diagnostic("countdown: \(seconds)s; locked=\(isKeyboardDisabled), tapIsEnabled=\(eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false), callbackTypesSeen=\(diagnosticEventTypes.count)")
         }
-        countdownLabel.stringValue = "Disabling keyboard for \(seconds) seconds"
+        countdownLabel.stringValue = "\(seconds) \(seconds == 1 ? "second" : "seconds") remaining"
+        countdownLabel.setAccessibilityValue(countdownLabel.stringValue)
         countdownLabel.isHidden = false
     }
 
@@ -243,8 +256,29 @@ class ViewController: NSViewController {
     private func enableKeyboard(reason: String) {
         diagnostic("unlock: \(reason); locked=\(isKeyboardDisabled), tapPresent=\(eventTap != nil)")
         cleanupLock()
-        countdownLabel?.isHidden = true
-        disableButton?.title = "Disable Keys"
+        updatePresentation()
+    }
+
+    // Presentation mirrors the existing lock state; it never starts or stops a session.
+    private func updatePresentation() {
+        guard isViewLoaded else { return }
+        headingLabel.stringValue = isKeyboardDisabled ? "Keyboard Locked" : "CleanKeys"
+        supportingLabel.stringValue = isKeyboardDisabled
+            ? "Clean your keyboard. Your mouse still works."
+            : "Temporarily block keys while you clean."
+        durationSlider.isEnabled = !isKeyboardDisabled
+        durationLabel.stringValue = "Lock for \(selectedDuration) seconds"
+        durationLabel.textColor = isKeyboardDisabled ? .secondaryLabelColor : .labelColor
+        disableButton.title = isKeyboardDisabled ? "Unlock Keyboard" : "Lock Keyboard"
+        disableButton.setAccessibilityHelp(isKeyboardDisabled
+            ? "Click to restore keyboard input immediately."
+            : "Temporarily block keyboard input for the selected duration.")
+        // Keep the countdown's fixed-height slot in both states so Unlock never moves.
+        countdownLabel.isHidden = false
+        if !isKeyboardDisabled {
+            countdownLabel.stringValue = ""
+            countdownLabel.setAccessibilityValue(nil)
+        }
     }
 
     private func cleanupLock() {
