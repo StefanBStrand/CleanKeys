@@ -6,6 +6,7 @@
 import Cocoa
 import ApplicationServices
 import IOKit.hidsystem
+import OSLog
 
 class ViewController: NSViewController {
     private var disableTimer: Timer?
@@ -15,16 +16,7 @@ class ViewController: NSViewController {
     private var unlockDeadline: ContinuousClock.Instant?
     private var isKeyboardDisabled = false
     private var isConfirmingLock = false
-    // Temporary diagnostics: at most one callback message per event type per session.
-    private var diagnosticEventTypes = Set<UInt32>()
-    private var diagnosticSeconds: Int64?
-    private var diagnosticSystemCategories = Set<String>()
-
-    private func diagnostic(_ message: String) {
-        #if DEBUG
-        print("[CleanKeys tap] \(message)")
-        #endif
-    }
+    private static let logger = Logger(subsystem: "Devstrand.CleanKeys", category: "KeyboardLock")
 
     @IBOutlet weak var countdownLabel: NSTextField!
     @IBOutlet weak var disableButton: NSButton!
@@ -92,7 +84,7 @@ class ViewController: NSViewController {
 
     @IBAction func disableInput(_ sender: NSButton) {
         if isKeyboardDisabled {
-            enableKeyboard(reason: "mouse button")
+            enableKeyboard()
             return
         }
         guard !isConfirmingLock else { return }
@@ -113,9 +105,9 @@ class ViewController: NSViewController {
         guard !isKeyboardDisabled, eventTap == nil else { return }
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         let accessibilityTrusted = AXIsProcessTrustedWithOptions(options)
-        diagnostic("permissions: accessibility=\(accessibilityTrusted), listenAccess=\(CGPreflightListenEventAccess()); mainThread=\(Thread.isMainThread)")
-        diagnostic("executable=\(Bundle.main.executableURL?.path ?? "unknown")")
+
         guard accessibilityTrusted else {
+            ViewController.logger.error("Accessibility permission unavailable; keyboard lock not started.")
             showAlert("Accessibility permission required",
                       "Allow CleanKeys in System Settings > Privacy & Security > Accessibility, then try again. If access is still unavailable, quit and reopen CleanKeys. The keyboard has not been disabled.")
             return
@@ -126,10 +118,6 @@ class ViewController: NSViewController {
         let eventMask = [CGEventType.keyDown, .keyUp, .flagsChanged].reduce(systemDefinedMask) {
             $0 | (CGEventMask(1) << $1.rawValue)
         }
-        diagnosticEventTypes.removeAll()
-        diagnosticSystemCategories.removeAll()
-        diagnosticSeconds = nil
-        diagnostic("creating session/headInsert/defaultTap; mask=\(eventMask) (keyDown/keyUp/flagsChanged/systemDefined)")
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -137,53 +125,47 @@ class ViewController: NSViewController {
             eventsOfInterest: eventMask,
             callback: { _, type, event, context in
                 guard let context = context else {
-                    #if DEBUG
-                    print("[CleanKeys tap] callback missing context; passing event")
-                    #endif
                     return Unmanaged.passUnretained(event)
                 }
                 let controller = Unmanaged<ViewController>.fromOpaque(context).takeUnretainedValue()
                 if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                     // Fail open: never silently resume blocking after macOS disables the tap.
-                    controller.diagnostic("callback: \(type == .tapDisabledByTimeout ? "tapDisabledByTimeout" : "tapDisabledByUserInput"); enabled=\(controller.eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false)")
-                    controller.enableKeyboard(reason: "tap disable notification")
+                    if type == .tapDisabledByTimeout {
+                        ViewController.logger.error("Event tap disabled by timeout; ending keyboard lock.")
+                    } else {
+                        ViewController.logger.error("Event tap disabled by user input; ending keyboard lock.")
+                    }
+
+                    controller.enableKeyboard()
                     return Unmanaged.passUnretained(event)
                 }
                 guard controller.isKeyboardDisabled,
                       let deadline = controller.unlockDeadline,
                       ContinuousClock.now < deadline else {
-                    controller.diagnostic("callback passing event: locked=\(controller.isKeyboardDisabled), deadlinePresent=\(controller.unlockDeadline != nil)")
-                    controller.enableKeyboard(reason: "callback inactive or deadline expired")
+                    controller.enableKeyboard()
                     return Unmanaged.passUnretained(event)
                 }
                 if type.rawValue == UInt32(NSEvent.EventType.systemDefined.rawValue) {
                     let category = controller.auxiliaryControlCategory(event)
-                    let label = category ?? "unrelated/unsupported"
-                    if controller.diagnosticSystemCategories.insert(label).inserted {
-                        controller.diagnostic("systemDefined: \(label); \(category == nil ? "pass" : "drop")")
-                    }
                     // Preserve other subtypes (including auxiliary mouse buttons) and unknown controls.
                     return category == nil ? Unmanaged.passUnretained(event) : nil
                 }
                 if type == .keyDown || type == .keyUp || type == .flagsChanged {
-                    if controller.diagnosticEventTypes.insert(type.rawValue).inserted {
-                        let name = type == .keyDown ? "keyDown" : (type == .keyUp ? "keyUp" : "flagsChanged")
-                        controller.diagnostic("callback: \(name); returning nil (drop); mainThread=\(Thread.isMainThread), enabled=\(controller.eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false)")
-                    }
                     return nil
                 }
                 return Unmanaged.passUnretained(event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            diagnostic("tapCreate returned nil")
+            ViewController.logger.error("Could not create keyboard event tap.")
             showAlert("Could not disable keyboard",
                       "macOS could not create the keyboard event tap. Check CleanKeys in System Settings > Privacy & Security > Accessibility and reopen the app if needed. The keyboard has not been disabled.")
             return
         }
         eventTap = tap
         guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
-            enableKeyboard(reason: "setup failure")
+            ViewController.logger.error("Could not create keyboard event-tap run-loop source.")
+            enableKeyboard()
             showAlert("Could not disable keyboard", "The keyboard event source could not be created. The keyboard has not been disabled.")
             return
         }
@@ -193,9 +175,10 @@ class ViewController: NSViewController {
         isKeyboardDisabled = true
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        diagnostic("installed source: valid=\(CFRunLoopSourceIsValid(source)), inMainCommonModes=\(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .commonModes)); tapIsEnabled=\(CGEvent.tapIsEnabled(tap: tap)); duration=\(duration)s")
+
         guard CGEvent.tapIsEnabled(tap: tap) else {
-            enableKeyboard(reason: "setup failure")
+            ViewController.logger.error("macOS did not enable the keyboard event tap.")
+            enableKeyboard()
             showAlert("Could not disable keyboard", "macOS did not enable the keyboard event tap. Check Accessibility permission and try again.")
             return
         }
@@ -208,7 +191,7 @@ class ViewController: NSViewController {
         countdownTimer = countdown
         RunLoop.main.add(countdown, forMode: .common)
         let unlock = Timer(timeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
-            self?.enableKeyboard(reason: "automatic unlock timer")
+            self?.enableKeyboard()
         }
         disableTimer = unlock
         RunLoop.main.add(unlock, forMode: .common)
@@ -241,7 +224,7 @@ class ViewController: NSViewController {
         guard isKeyboardDisabled, let deadline = unlockDeadline else { return }
         let now = ContinuousClock.now
         guard now < deadline else {
-            enableKeyboard(reason: "countdown deadline reached")
+            enableKeyboard()
             return
         }
         let remaining = now.duration(to: deadline).components
@@ -249,21 +232,16 @@ class ViewController: NSViewController {
         // Presentation only: reuse the existing deadline and 0.25-second countdown updates.
         countdownProgress.doubleValue = min(countdownProgress.maxValue, max(0, remainingSeconds))
         let seconds = remaining.seconds + (remaining.attoseconds > 0 ? 1 : 0)
-        if diagnosticSeconds != seconds {
-            diagnosticSeconds = seconds
-            diagnostic("countdown: \(seconds)s; locked=\(isKeyboardDisabled), tapIsEnabled=\(eventTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false), callbackTypesSeen=\(diagnosticEventTypes.count)")
-        }
         countdownLabel.stringValue = "\(seconds) \(seconds == 1 ? "second" : "seconds") remaining"
         countdownLabel.setAccessibilityValue(countdownLabel.stringValue)
         countdownLabel.isHidden = false
     }
 
-    @objc private func unlockForNotification(_ notification: Notification) {
-        enableKeyboard(reason: "notification: \(notification.name.rawValue)")
+    @objc private func unlockForNotification(_: Notification) {
+        enableKeyboard()
     }
 
-    private func enableKeyboard(reason: String) {
-        diagnostic("unlock: \(reason); locked=\(isKeyboardDisabled), tapPresent=\(eventTap != nil)")
+    private func enableKeyboard() {
         cleanupLock()
         updatePresentation()
     }
@@ -300,9 +278,6 @@ class ViewController: NSViewController {
     }
 
     private func cleanupLock() {
-        if eventTap != nil {
-            diagnostic("cleanup: disabling/invalidation of tap and stored source; invalidating timers")
-        }
         isKeyboardDisabled = false
         unlockDeadline = nil
         if let tap = eventTap {
