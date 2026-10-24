@@ -715,10 +715,10 @@
                                 <rect key="frame" x="32" y="24" width="376" height="332" />
                                 <subviews>
                                     <imageView translatesAutoresizingMaskIntoConstraints="NO" id="ui-keyboard">
-                                        <rect key="frame" x="164" y="0" width="80" height="52" />
+                                        <rect key="frame" x="164" y="0" width="88" height="56" />
                                         <constraints>
-                                            <constraint firstAttribute="width" constant="80" id="ui-icon-width" />
-                                            <constraint firstAttribute="height" constant="52" id="ui-icon-height" />
+                                            <constraint firstAttribute="width" constant="88" id="ui-icon-width" />
+                                            <constraint firstAttribute="height" constant="56" id="ui-icon-height" />
                                         </constraints>
                                         <imageCell key="cell" refusesFirstResponder="YES" alignment="center" imageScaling="scaleProportionallyUpOrDown" image="keyboard" catalog="system" id="ui-keyboard-cell" />
                                     </imageView>
@@ -728,31 +728,60 @@
                                             <font key="font" metaFont="systemSemibold" size="23" />
                                             <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog" />
                                         </textFieldCell>
-                                    <constraints><constraint firstAttribute="height" constant="28" id="ui-height-ui-heading"/></constraints></textField>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="28" id="ui-height-ui-heading" />
+                                        </constraints>
+                                    </textField>
                                     <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="ui-support">
                                         <rect key="frame" x="0" y="0" width="376" height="22" />
                                         <textFieldCell key="cell" wraps="YES" alignment="center" title="Temporarily block keys while you clean." id="ui-support-cell">
                                             <font key="font" metaFont="system" size="13" />
                                             <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog" />
                                         </textFieldCell>
-                                    <constraints><constraint firstAttribute="height" constant="20" id="ui-height-ui-support"/></constraints></textField>
-                                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="MEi-gD-R6u">
-                                        <rect key="frame" x="0" y="0" width="376" height="26" />
-                                        <textFieldCell alignment="center" key="cell" wraps="YES" title="Disable for 10 seconds" id="B6P-Ev-htz">
-                                            <font key="font" metaFont="system" />
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog" />
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog" />
-                                        </textFieldCell>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="20" id="ui-height-ui-support" />
+                                        </constraints>
                                     </textField>
-                                    <slider verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="pd0-ax-NNl">
-                                        <rect key="frame" x="0" y="0" width="376" height="26" />
-                                        <sliderCell key="cell" state="on" alignment="left" minValue="5" maxValue="25" doubleValue="10" tickMarkPosition="below" numberOfTickMarks="5" allowsTickMarkValuesOnly="YES" sliderType="linear" id="blL-tS-qp5">
-                                            <font key="font" metaFont="system" size="13" />
-                                        </sliderCell>
-                                        <connections>
-                                            <action selector="durationSliderChanged:" target="XfG-lQ-9wD" id="Rhi-av-pzZ" />
-                                        </connections>
-                                    </slider>
+                                    <customView translatesAutoresizingMaskIntoConstraints="NO" id="ui-duration-area">
+                                        <rect key="frame" x="0" y="0" width="376" height="56" />
+                                        <subviews>
+                                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="MEi-gD-R6u">
+                                                <rect key="frame" x="0" y="0" width="376" height="26" />
+                                                <textFieldCell alignment="center" key="cell" wraps="YES" title="Disable for 10 seconds" id="B6P-Ev-htz">
+                                                    <font key="font" metaFont="system" />
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog" />
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog" />
+                                                </textFieldCell>
+                                            </textField>
+                                            <slider verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="pd0-ax-NNl">
+                                                <rect key="frame" x="0" y="0" width="376" height="26" />
+                                                <sliderCell key="cell" state="on" alignment="left" minValue="5" maxValue="25" doubleValue="10" tickMarkPosition="below" numberOfTickMarks="5" allowsTickMarkValuesOnly="YES" sliderType="linear" id="blL-tS-qp5">
+                                                    <font key="font" metaFont="system" size="13" />
+                                                </sliderCell>
+                                                <connections>
+                                                    <action selector="durationSliderChanged:" target="XfG-lQ-9wD" id="Rhi-av-pzZ" />
+                                                </connections>
+                                            </slider>
+                                            <progressIndicator hidden="YES" maxValue="1" doubleValue="1" indeterminate="NO" style="bar" translatesAutoresizingMaskIntoConstraints="NO" id="ui-countdown-progress">
+                                                <rect key="frame" x="0" y="26" width="376" height="4" />
+                                            </progressIndicator>
+                                        </subviews>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="56" id="ui-duration-height" />
+                                            <constraint firstItem="MEi-gD-R6u" firstAttribute="leading" secondItem="ui-duration-area" secondAttribute="leading" id="ui-leading-MEi-gD-R6u" />
+                                            <constraint firstAttribute="trailing" secondItem="MEi-gD-R6u" secondAttribute="trailing" id="ui-trailing-MEi-gD-R6u" />
+                                            <constraint firstItem="pd0-ax-NNl" firstAttribute="leading" secondItem="ui-duration-area" secondAttribute="leading" id="ui-leading-pd0-ax-NNl" />
+                                            <constraint firstAttribute="trailing" secondItem="pd0-ax-NNl" secondAttribute="trailing" id="ui-trailing-pd0-ax-NNl" />
+                                            <constraint firstItem="ui-countdown-progress" firstAttribute="leading" secondItem="ui-duration-area" secondAttribute="leading" id="ui-leading-ui-countdown-progress" />
+                                            <constraint firstAttribute="trailing" secondItem="ui-countdown-progress" secondAttribute="trailing" id="ui-trailing-ui-countdown-progress" />
+                                            <constraint firstItem="MEi-gD-R6u" firstAttribute="top" secondItem="ui-duration-area" secondAttribute="top" id="ui-duration-label-top" />
+                                            <constraint firstItem="MEi-gD-R6u" firstAttribute="height" constant="20" id="ui-duration-label-height" />
+                                            <constraint firstAttribute="bottom" secondItem="pd0-ax-NNl" secondAttribute="bottom" id="ui-duration-slider-bottom" />
+                                            <constraint firstItem="pd0-ax-NNl" firstAttribute="height" constant="26" id="ui-duration-slider-height" />
+                                            <constraint firstItem="ui-countdown-progress" firstAttribute="centerY" secondItem="ui-duration-area" secondAttribute="centerY" id="ui-progress-center" />
+                                            <constraint firstItem="ui-countdown-progress" firstAttribute="height" constant="4" id="ui-progress-height" />
+                                        </constraints>
+                                    </customView>
                                     <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="pa5-tJ-aVM">
                                         <rect key="frame" x="0" y="0" width="376" height="26" />
                                         <textFieldCell key="cell" wraps="YES" alignment="center" title="Ready to clean" id="by2-9R-cee">
@@ -760,7 +789,10 @@
                                             <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog" />
                                             <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog" />
                                         </textFieldCell>
-                                    <constraints><constraint firstAttribute="height" constant="40" id="ui-height-pa5-tJ-aVM"/></constraints></textField>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="40" id="ui-height-pa5-tJ-aVM" />
+                                        </constraints>
+                                    </textField>
                                     <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="CYn-Mx-ff3">
                                         <rect key="frame" x="0" y="0" width="376" height="26" />
                                         <buttonCell key="cell" type="push" title="Lock Keyboard" bezelStyle="rounded" alignment="center" lineBreakMode="truncatingTail" state="on" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="6Kh-1Q-ZCG">
@@ -786,32 +818,29 @@
                                 <constraints>
                                     <constraint firstItem="ui-heading" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-0" />
                                     <constraint firstItem="ui-support" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-1" />
-                                    <constraint firstItem="MEi-gD-R6u" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-2" />
-                                    <constraint firstItem="pd0-ax-NNl" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-3" />
                                     <constraint firstItem="pa5-tJ-aVM" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-4" />
                                     <constraint firstItem="CYn-Mx-ff3" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-5" />
                                     <constraint firstItem="ui-footer" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-width-6" />
+                                    <constraint firstItem="ui-duration-area" firstAttribute="width" secondItem="ui-stack" secondAttribute="width" id="ui-duration-area-width" />
                                 </constraints>
-<visibilityPriorities>
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                        <integer value="1000" />
-                                    </visibilityPriorities>
-<customSpacing>
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                        <real value="3.4028234663852886e+38" />
-                                    </customSpacing>
+                                <visibilityPriorities>
+                                    <integer value="1000" />
+                                    <integer value="1000" />
+                                    <integer value="1000" />
+                                    <integer value="1000" />
+                                    <integer value="1000" />
+                                    <integer value="1000" />
+                                    <integer value="1000" />
+                                </visibilityPriorities>
+                                <customSpacing>
+                                    <real value="3.4028234663852886e+38" />
+                                    <real value="3.4028234663852886e+38" />
+                                    <real value="3.4028234663852886e+38" />
+                                    <real value="3.4028234663852886e+38" />
+                                    <real value="3.4028234663852886e+38" />
+                                    <real value="3.4028234663852886e+38" />
+                                    <real value="3.4028234663852886e+38" />
+                                </customSpacing>
                             </stackView>
                         </subviews>
                         <constraints>
@@ -823,13 +852,14 @@
                         </constraints>
                     </view>
                     <connections>
-                        <outlet property="headingLabel" destination="ui-heading" id="ui-heading-outlet"/>
-                        <outlet property="supportingLabel" destination="ui-support" id="ui-support-outlet"/>
-                        <outlet property="keyboardIcon" destination="ui-keyboard" id="ui-icon-outlet"/>
-                        <outlet property="countdownLabel" destination="pa5-tJ-aVM" id="zCN-UO-qhJ"/>
-                        <outlet property="disableButton" destination="CYn-Mx-ff3" id="u3k-16-aqb"/>
-                        <outlet property="durationLabel" destination="MEi-gD-R6u" id="zii-vR-WoH"/>
-                        <outlet property="durationSlider" destination="pd0-ax-NNl" id="J2M-36-RDi"/>
+                        <outlet property="headingLabel" destination="ui-heading" id="ui-heading-outlet" />
+                        <outlet property="supportingLabel" destination="ui-support" id="ui-support-outlet" />
+                        <outlet property="keyboardIcon" destination="ui-keyboard" id="ui-icon-outlet" />
+                        <outlet property="countdownLabel" destination="pa5-tJ-aVM" id="zCN-UO-qhJ" />
+                        <outlet property="disableButton" destination="CYn-Mx-ff3" id="u3k-16-aqb" />
+                        <outlet property="durationLabel" destination="MEi-gD-R6u" id="zii-vR-WoH" />
+                        <outlet property="durationSlider" destination="pd0-ax-NNl" id="J2M-36-RDi" />
+                        <outlet property="countdownProgress" destination="ui-countdown-progress" id="ui-progress-outlet" />
                     </connections>
                 </viewController>
                 <customObject id="rPt-NT-nkU" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>

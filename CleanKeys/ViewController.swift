@@ -33,6 +33,7 @@ class ViewController: NSViewController {
     @IBOutlet private weak var headingLabel: NSTextField!
     @IBOutlet private weak var supportingLabel: NSTextField!
     @IBOutlet private weak var keyboardIcon: NSImageView!
+    @IBOutlet private weak var countdownProgress: NSProgressIndicator!
 
     private let defaultDisableDurationKey = "defaultDisableDuration"
     private let initialDefaultDuration = 10
@@ -48,13 +49,18 @@ class ViewController: NSViewController {
         countdownLabel.font = .monospacedDigitSystemFont(ofSize: 28, weight: .semibold)
         countdownLabel.setAccessibilityLabel("Time remaining")
         durationSlider.setAccessibilityLabel("Lock duration in seconds")
-        keyboardIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 44, weight: .regular)
+        keyboardIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 48, weight: .regular)
         keyboardIcon.contentTintColor = .secondaryLabelColor
         keyboardIcon.setAccessibilityElement(false)
         disableButton.controlSize = .large
         disableButton.bezelStyle = .rounded
         disableButton.bezelColor = .controlAccentColor
         disableButton.font = .systemFont(ofSize: 15, weight: .semibold)
+        countdownProgress.isIndeterminate = false
+        countdownProgress.style = .bar
+        countdownProgress.controlSize = .small
+        countdownProgress.minValue = 0
+        countdownProgress.setAccessibilityLabel("Lock time remaining")
         updatePresentation()
 
         NotificationCenter.default.addObserver(self, selector: #selector(unlockForNotification(_:)),
@@ -239,6 +245,9 @@ class ViewController: NSViewController {
             return
         }
         let remaining = now.duration(to: deadline).components
+        let remainingSeconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
+        // Presentation only: reuse the existing deadline and 0.25-second countdown updates.
+        countdownProgress.doubleValue = min(countdownProgress.maxValue, max(0, remainingSeconds))
         let seconds = remaining.seconds + (remaining.attoseconds > 0 ? 1 : 0)
         if diagnosticSeconds != seconds {
             diagnosticSeconds = seconds
@@ -264,9 +273,18 @@ class ViewController: NSViewController {
         guard isViewLoaded else { return }
         headingLabel.stringValue = isKeyboardDisabled ? "Keyboard Locked" : "CleanKeys"
         supportingLabel.stringValue = isKeyboardDisabled
-            ? "Clean your keyboard. Your mouse still works."
+            ? "Your keyboard is temporarily locked."
             : "Temporarily block keys while you clean."
         durationSlider.isEnabled = !isKeyboardDisabled
+        durationSlider.isHidden = isKeyboardDisabled
+        durationLabel.isHidden = isKeyboardDisabled
+        countdownProgress.isHidden = !isKeyboardDisabled
+        if isKeyboardDisabled {
+            countdownProgress.maxValue = Double(selectedDuration)
+            countdownProgress.doubleValue = countdownProgress.maxValue
+        } else {
+            countdownProgress.doubleValue = 0
+        }
         durationLabel.stringValue = "Lock for \(selectedDuration) seconds"
         durationLabel.textColor = isKeyboardDisabled ? .secondaryLabelColor : .labelColor
         disableButton.title = isKeyboardDisabled ? "Unlock Keyboard" : "Lock Keyboard"
